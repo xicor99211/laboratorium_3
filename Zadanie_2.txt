@@ -1,0 +1,40 @@
+%%sh
+cat > pi-mpi.c << EOF
+#include <mpi.h>
+#include <stdio.h>
+double f(double x) {
+  return x;
+}
+
+int main(int argc, char *argv[]) {
+
+  int np,lp;
+  MPI_Status status;
+  MPI_Init(&argc, &argv);
+  MPI_Comm_rank(MPI_COMM_WORLD, &np);
+  MPI_Comm_size(MPI_COMM_WORLD, &lp);
+
+  double xp = 0.0;
+  double xk = 1.0;
+  int n = 50;
+
+  double clk = 0.0;
+  double h = (xk-xp)/n;
+  double xi;
+  for (long nn = np; nn<n; nn+=lp){
+    xi = xp + nn * h;
+    clk += f(xi);
+  }
+  double final;
+  MPI_Reduce(&clk, &final, 1, MPI_DOUBLE, MPI_SUM, 0, MPI_COMM_WORLD);
+  if (np == 0){
+    final += f(xp)/2;
+    final += f(xk)/2;
+    final *= h;
+    printf("Wynik calki: %f", final);
+  }
+  MPI_Finalize();
+  return 0;
+}
+EOF
+mpicc pi-mpi.c && mpirun -n 50 --allow-run-as-root a.out
